@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>حرف في الهوا</title>
+<meta name="description" content="اكتب حروف عربية في الهوا بإصبعك قدام الكاميرا، والموقع يرسمها بخط جميل ويتعرّف عليها.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@500&family=Amiri&family=Lateef&family=Cairo:wght@500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<video id="cam" playsinline muted aria-hidden="true"></video>
+<canvas id="ink" aria-label="لوحة الكتابة"></canvas>
+<canvas id="hud" aria-hidden="true"></canvas>
+
+<header class="top">
+  <div class="brand">حرف <span>في الهوا</span></div>
+  <div class="top-right">
+    <span id="status" class="pill">الكاميرا مطفية</span>
+    <button id="btn-help" class="icon-btn" aria-label="طريقة الاستخدام">؟</button>
+  </div>
+</header>
+
+<div id="result" class="result" aria-live="polite">
+  <div class="glyph" id="glyph"></div>
+  <div class="glyph-name" id="glyph-name"></div>
+  <div class="alts" id="alts"></div>
+  <div class="picker" id="picker" hidden></div>
+</div>
+
+<section class="dock">
+  <div class="word" id="word" aria-live="polite"><span class="placeholder">الحروف اللي تكتبها تتجمّع هنا</span></div>
+  <div class="actions">
+    <button id="btn-space" class="btn">مسافة</button>
+    <button id="btn-back" class="btn">⌫ حذف حرف</button>
+    <button id="btn-clear" class="btn">مسح الكل</button>
+    <button id="btn-save" class="btn btn-gold">حفظ صورة</button>
+  </div>
+</section>
+
+<div id="intro" class="overlay">
+  <div class="card">
+    <h1>حرف <span>في الهوا</span></h1>
+    <p class="lead">اكتب حرف عربي في الهوا بإصبعك قدام الكاميرا، ويرسمه الموقع بخط جميل ويتعرّف عليه.</p>
+    <ol class="steps">
+      <li><b>قرّب السبابة من الإبهام</b> يبدأ الرسم، <b>وبعّدهم</b> يوقف.</li>
+      <li>اكتب الحرف بشكله المنفصل، ونقاطه نقرة سريعة.</li>
+      <li>وقّف ثانية، فيطلع لك الحرف ويضاف للكلمة.</li>
+    </ol>
+    <div class="card-actions">
+      <button id="btn-camera" class="btn btn-gold btn-lg">شغّل الكاميرا</button>
+      <button id="btn-mouse" class="btn btn-lg">جرّب بالماوس</button>
+    </div>
+    <p class="note">الكاميرا تشتغل داخل جهازك فقط، وما ينرسل أي فيديو لأي مكان.</p>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

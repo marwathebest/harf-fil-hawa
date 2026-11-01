@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Recognizer accuracy</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@500&family=Aref+Ruqaa:wght@400&family=Amiri&family=Cairo:wght@500&family=Reem+Kufi&family=Lateef&family=Scheherazade+New&family=Tajawal:wght@500&family=Markazi+Text&family=Harmattan&display=swap">
+<style>body{font-family:system-ui;background:#fff;color:#111;padding:16px}td,th{padding:2px 8px;border-bottom:1px solid #ddd}.bad{color:#b00}</style>
+</head>
+<body>
+<h1>دقة التعرّف</h1>
+<p>القوالب: Noto Naskh و Aref Ruqaa و Amiri و Lateef و Cairo. الاختبار: خطوط ما شافها المتعرّف.</p>
+<pre id="out">...</pre>
+<script type="module">
+import { Recognizer, LETTERS, TEMPLATE_FONTS, shapeFromGlyph } from '../js/recognizer.js';
+const TEST = ['Scheherazade New', 'Tajawal', 'Markazi Text', 'Harmattan', 'Reem Kufi'];
+await Promise.all([...TEMPLATE_FONTS, ...TEST].map((f) => document.fonts.load(`150px "${f}"`, 'ابت')));
+const rec = new Recognizer();
+rec.build();
+const lines = [];
+const res = {};
+let all = 0, ok = 0, ok3 = 0;
+for (const font of TEST) {
+  let f = 0, f3 = 0; const miss = [];
+  for (const [ch] of LETTERS) {
+    const top = rec.recognizeShape(shapeFromGlyph(ch, font));
+    if (top[0].char === ch) f++; else miss.push(`${ch}→${top[0].char}`);
+    if (top.some((t) => t.char === ch)) f3++;
+  }
+  all += 28; ok += f; ok3 += f3;
+  lines.push(`${font}: top1 ${f}/28, top3 ${f3}/28   misses: ${miss.join(' ')}`);
+}
+lines.push(`TOTAL top1 ${(100 * ok / all).toFixed(0)}%  top3 ${(100 * ok3 / all).toFixed(0)}%`);
+document.getElementById('out').textContent = lines.join('\n');
+window.__result = lines;
+</script>
+</body>
+</html>
