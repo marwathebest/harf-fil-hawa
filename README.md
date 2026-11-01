@@ -4,7 +4,9 @@
 
 **Write Arabic or English letters in the air with your finger in front of a webcam. The page draws them with a calligraphy-style brush, recognizes each letter with a CNN trained on real handwriting, and builds them into words.**
 
-### [▶ جرّبها مباشرة | Try it live](https://marwathebest.github.io/harf-fil-hawa/)
+### [▶ جرّبها مباشرة | Try it live](https://harf-fil-hawa.onrender.com/)
+
+نسخة ثانية على GitHub Pages: https://marwathebest.github.io/harf-fil-hawa/
 
 ![Harf fil Hawa: the letter ب drawn in the air and recognized, building the word باب](docs/screenshot.jpg)
 
