@@ -9,6 +9,9 @@ const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmar
 const PINCH_ON = 0.32;   // المسافة بين السبابة والإبهام نسبة لحجم اليد
 const PINCH_OFF = 0.46;
 const RECOGNIZE_AFTER = 900; // كم ملي ثانية ننتظر بعد آخر ضربة
+const RECOGNIZE_AFTER_HAND = 1600;
+const PALM_HOLD = 700;  // كم ملي ثانية تفتح كفّك عشان تمسح
+const DWELL = 1000;     // كم ملي ثانية توقّف الدائرة فوق زر عشان ينضغط
 const NIB = (35 * Math.PI) / 180; // زاوية القلم المسطّح
 
 const $ = (s) => document.querySelector(s);
@@ -115,16 +118,42 @@ function penMove(x, y) {
   const theta = Math.atan2(y - last.y, x - last.x);
   const target = baseWidth() * (0.28 + 0.72 * Math.abs(Math.sin(theta - NIB)));
   const w = last.w * 0.65 + target * 0.35;
-  current.push({ x, y, w });
+  current.push({ x, y, w, t: performance.now() });
   drawSegment(current, current.length - 1);
 }
 
-function penUp() {
+// trim: كم ملي ثانية نقص من آخر الضربة. لما تبعّد أصابعك، النقطة تنحرف شوي قبل ما يوقف الرسم
+function penUp(trim = 0) {
   if (!current) return;
+  if (trim && current.length > 4) {
+    const end = current[current.length - 1].t;
+    const kept = current.filter((p, i) => i < 2 || !p.t || p.t <= end - trim);
+    if (kept.length < current.length) {
+      current.splice(0, current.length, ...kept);
+      redrawInk();
+    }
+  }
   current = null;
   setStatus(cameraOn ? 'live' : 'idle');
   clearTimeout(timer);
-  timer = setTimeout(recognize, RECOGNIZE_AFTER);
+  // باليد تاخذ وقت أطول عشان تروح للنقاط، فننتظر أكثر
+  timer = setTimeout(recognize, cameraOn ? RECOGNIZE_AFTER_HAND : RECOGNIZE_AFTER);
+}
+
+// يمسح اللي على اللوحة. ولو الحرف اللي عليها توه انقرأ، يشيله من الكلمة بعد
+function wipe() {
+  clearTimeout(timer);
+  if (current) current = null;
+  if (!strokes.length) return false;
+  if (freshLetter && word) {
+    word = word.slice(0, -1);
+    renderWord();
+  }
+  freshLetter = false;
+  clearInk();
+  hideResult();
+  toast('انمسح ✓');
+  return true;
 }
 
 // ---------- recognition ----------
@@ -272,7 +301,7 @@ ink.addEventListener('pointercancel', penUp);
 // ---------- camera & hand tracking ----------
 
 class OneEuro {
-  constructor(minCutoff = 1.0, beta = 0.008, dCutoff = 1.0) {
+  constructor(minCutoff = 0.7, beta = 0.007, dCutoff = 1.0) {
     Object.assign(this, { minCutoff, beta, dCutoff });
     this.reset();
   }
@@ -302,6 +331,11 @@ let pinching = false;
 let pinchFrames = 0;
 let lostAt = 0;
 let lastVideoTime = -1;
+let palmSince = 0;
+let palmFired = false;
+let dwellEl = null;
+let dwellStart = 0;
+let dwellDone = false;
 const fx = new OneEuro();
 const fy = new OneEuro();
 
@@ -346,7 +380,7 @@ async function startCamera() {
 
 // يحوّل نقطة من الفيديو لمكانها على الشاشة (الفيديو معروض بـ cover ومعكوس)
 function toScreen(lm) {
-  const vw = video.videoWidth, vh = video.videoHeight;
+  const vw = video.videoWidth || W, vh = video.videoHeight || H;
   const s = Math.max(W / vw, H / vh);
   const ox = (W - vw * s) / 2, oy = (H - vh * s) / 2;
   return { x: W - (lm.x * vw * s + ox), y: lm.y * vh * s + oy };
@@ -369,7 +403,7 @@ function handleHand(lm, now) {
     if (!lostAt) lostAt = now;
     if (pinching && now - lostAt > 200) {
       pinching = false;
-      penUp();
+      penUp(90);
     }
     fx.reset();
     fy.reset();
@@ -383,7 +417,40 @@ function handleHand(lm, now) {
   const raw = toScreen({ x: (lm[4].x + lm[8].x) / 2, y: (lm[4].y + lm[8].y) / 2 });
   const p = { x: fx.filter(raw.x, now), y: fy.filter(raw.y, now) };
 
-  if (!pinching && ratio < PINCH_ON) {
+  // ✋ كف مفتوح لفترة = مسح
+  const palm = !pinching && isOpenPalm(lm, ratio);
+  let palmProgress = 0;
+  if (palm) {
+    if (!palmSince) palmSince = now;
+    palmProgress = Math.min(1, (now - palmSince) / PALM_HOLD);
+    if (palmProgress >= 1 && !palmFired) {
+      palmFired = true;
+      wipe();
+    }
+  } else {
+    palmSince = 0;
+    palmFired = false;
+  }
+
+  // ⏳ الدائرة واقفة فوق زر = ضغطة
+  let dwellProgress = 0;
+  const target = !pinching && !palm ? buttonAt(p) : null;
+  if (target !== dwellEl) {
+    if (dwellEl) dwellEl.classList.remove('hand-hover');
+    dwellEl = target;
+    dwellStart = now;
+    dwellDone = false;
+    if (dwellEl) dwellEl.classList.add('hand-hover');
+  }
+  if (dwellEl && !dwellDone) {
+    dwellProgress = Math.min(1, (now - dwellStart) / DWELL);
+    if (dwellProgress >= 1) {
+      dwellDone = true;
+      dwellEl.click();
+    }
+  }
+
+  if (!pinching && ratio < PINCH_ON && !dwellEl) {
     if (++pinchFrames >= 2) {
       pinching = true;
       penDown(p.x, p.y);
@@ -391,16 +458,32 @@ function handleHand(lm, now) {
   } else if (pinching && ratio > PINCH_OFF) {
     pinching = false;
     pinchFrames = 0;
-    penUp();
+    penUp(90);
   } else if (!pinching) {
     pinchFrames = 0;
   }
   if (pinching) penMove(p.x, p.y);
 
-  drawHud(lm, p, ratio);
+  drawHud(lm, p, ratio, { palmProgress, dwellProgress });
 }
 
-function drawHud(lm, p, ratio) {
+// الأصابع الأربعة ممدودة (أطرافها أبعد عن الرسغ من مفاصلها) والإبهام بعيد عن السبابة
+function isOpenPalm(lm, ratio) {
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const w = lm[0];
+  for (const [tip, pip] of [[8, 6], [12, 10], [16, 14], [20, 18]]) {
+    if (d(lm[tip], w) < d(lm[pip], w) * 1.12) return false;
+  }
+  return ratio > 0.75;
+}
+
+function buttonAt(p) {
+  const el = document.elementFromPoint(p.x, p.y);
+  const btn = el && el.closest('button');
+  return btn && !btn.disabled && btn.offsetParent ? btn : null;
+}
+
+function drawHud(lm, p, ratio, { palmProgress = 0, dwellProgress = 0 } = {}) {
   // نقاط اليد خفيفة عشان تعرف وين يدك
   hctx.fillStyle = 'rgba(243, 239, 230, 0.35)';
   for (const i of [0, 4, 5, 8, 9, 12, 13, 16, 17, 20]) {
@@ -421,6 +504,23 @@ function drawHud(lm, p, ratio) {
     hctx.beginPath();
     hctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
     hctx.fill();
+  }
+  // حلقة تتعبّى وأنت فاتح كفّك أو واقف فوق زر
+  const arc = (x, y, rad, prog, color) => {
+    hctx.lineWidth = 4;
+    hctx.strokeStyle = color;
+    hctx.beginPath();
+    hctx.arc(x, y, rad, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+    hctx.stroke();
+  };
+  if (dwellProgress > 0) arc(p.x, p.y, r + 8, dwellProgress, INK);
+  if (palmProgress > 0) {
+    const c = toScreen(lm[9]);
+    arc(c.x, c.y, 60, palmProgress, 'rgba(244, 162, 97, 0.9)');
+    hctx.font = '600 15px "IBM Plex Sans Arabic"';
+    hctx.fillStyle = 'rgba(244, 162, 97, 0.95)';
+    hctx.textAlign = 'center';
+    hctx.fillText('مسح', c.x, c.y + 5);
   }
 }
 
@@ -498,6 +598,7 @@ $('#btn-mouse').addEventListener('click', () => {
   toast('اضغط واسحب عشان تكتب');
 });
 $('#btn-help').addEventListener('click', () => $('#intro').classList.remove('hidden'));
+$('#btn-wipe').addEventListener('click', () => { if (!wipe()) toast('اللوحة فاضية'); });
 $('#btn-space').addEventListener('click', () => { word += ' '; renderWord(); });
 $('#btn-back').addEventListener('click', () => { word = word.slice(0, -1); renderWord(); hideResult(); });
 $('#btn-clear').addEventListener('click', () => { word = ''; renderWord(); clearInk(); hideResult(); });
@@ -520,5 +621,5 @@ Promise.all(TEMPLATE_FONTS.map((f) => document.fonts.load(`150px "${f}"`, 'اب�
     restoreSamples();
     ready = true;
     if (strokes.length && !current) recognize();
-    window.__harf = { recognizer, get strokes() { return strokes; }, get word() { return word; } };
+    window.__harf = { recognizer, handleHand, get strokes() { return strokes; }, get word() { return word; } };
   });

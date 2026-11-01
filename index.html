@@ -33,6 +33,7 @@
 <section class="dock">
   <div class="word" id="word" aria-live="polite"><span class="placeholder">الحروف اللي تكتبها تتجمّع هنا</span></div>
   <div class="actions">
+    <button id="btn-wipe" class="btn">↺ امسح الرسم</button>
     <button id="btn-space" class="btn">مسافة</button>
     <button id="btn-back" class="btn">⌫ حذف حرف</button>
     <button id="btn-clear" class="btn">مسح الكل</button>
@@ -48,6 +49,7 @@
       <li><b>قرّب السبابة من الإبهام</b> يبدأ الرسم، <b>وبعّدهم</b> يوقف.</li>
       <li>اكتب الحرف بشكله المنفصل، ونقاطه نقرة سريعة.</li>
       <li>وقّف ثانية، فيطلع لك الحرف ويضاف للكلمة.</li>
+      <li><b>غلطت؟</b> افتح كفّك قدام الكاميرا ثانية وينمسح.</li>
     </ol>
     <div class="card-actions">
       <button id="btn-camera" class="btn btn-gold btn-lg">شغّل الكاميرا</button>
@@ -55,6 +57,12 @@
     </div>
     <p class="note">الكاميرا تشتغل داخل جهازك فقط، وما ينرسل أي فيديو لأي مكان.</p>
   </div>
+</div>
+
+<div class="hand-hint" aria-hidden="true">
+  <span>🤏 قرّب أصابعك وارسم</span>
+  <span>✋ افتح كفّك ثانية = مسح</span>
+  <span>⏳ وقّف الدائرة فوق زر = ضغطة</span>
 </div>
 
 <div id="toast" class="toast" role="status"></div>

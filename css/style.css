@@ -186,6 +186,7 @@ body.camera-on #cam { opacity: 0.32; }
 .btn:hover { border-color: var(--gold); }
 .btn:active { transform: scale(0.97); }
 .btn:disabled { opacity: 0.5; cursor: wait; }
+.btn.hand-hover, .alts button.hand-hover, .picker button.hand-hover { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(233, 196, 106, 0.25); }
 .btn-gold { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); font-weight: 600; }
 .btn-lg { padding: 12px 22px; font-size: 16px; }
 
@@ -233,6 +234,21 @@ body.camera-on #cam { opacity: 0.32; }
   pointer-events: none;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.hand-hint {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 3;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-2);
+  pointer-events: none;
+}
+.hand-hint span { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+body.camera-on .hand-hint { display: flex; }
 
 @media (max-width: 640px) {
   .brand { font-size: 24px; }
