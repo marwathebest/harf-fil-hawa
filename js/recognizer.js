@@ -198,7 +198,7 @@ export function shapeFromStrokes(strokes) {
     const pts = st.map((p) => ({ x: ox + (p.x - x0) * s, y: oy + (p.y - y0) * s }));
     // نقطة الحرف تكون غالباً ضربة قصيرة جداً، نرسمها دائرة
     const len = pts.reduce((L, p, i) => (i ? L + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0), 0);
-    if (pts.length < 3 || len < 12) {
+    if (len < 12) {
       const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
       const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
       ctx.beginPath();
@@ -231,13 +231,25 @@ export class Recognizer {
     return this.templates.length;
   }
 
-  // يتعلّم من خط المستخدم: لما يصحّح حرف، نضيف كتابته كقالب جديد لهذا الحرف
+  // يتعلّم من خط المستخدم: لما يصحّح حرف، نضيف كتابته كقالب جديد لهذا الحرف (عربي أو إنجليزي)
   addSample(char, strokes) {
     const entry = LETTERS.find(([c]) => c === char);
     const shape = shapeFromStrokes(strokes);
-    if (!entry || !shape) return false;
-    this.templates.push({ char, name: entry[1], font: 'user', shape });
+    if (!shape) return false;
+    this.templates.push({ char, name: entry ? entry[1] : char, font: 'user', shape });
     return true;
+  }
+
+  // أقرب مسافة لكل حرف: Map(char -> d)
+  distances(shape, only = null) {
+    const best = new Map();
+    if (!shape) return best;
+    for (const t of this.templates) {
+      if (only && !only.has(t.char)) continue;
+      const d = distance(shape, t.shape);
+      if (!best.has(t.char) || d < best.get(t.char)) best.set(t.char, d);
+    }
+    return best;
   }
 
   recognizeShape(shape, k = 3) {

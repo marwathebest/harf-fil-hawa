@@ -1,8 +1,8 @@
 # حرف في الهوا ✍️ | Harf fil Hawa
 
-**اكتب حروف عربية في الهوا بإصبعك قدام الكاميرا. الموقع يرسمها بخط ذهبي على شكل خط القلم، ويتعرّف على كل حرف، ويجمع الحروف لين تصير كلمة.**
+**اكتب حروف عربية أو إنجليزية في الهوا بإصبعك قدام الكاميرا. الموقع يرسمها بخط ذهبي على شكل خط القلم، ويتعرّف على كل حرف بشبكة عصبية متدرّبة على خط يد حقيقي، ويجمع الحروف لين تصير كلمة.**
 
-**Write Arabic letters in the air with your finger in front of a webcam. The page draws them with a calligraphy-style brush, recognizes each letter, and builds them into words.**
+**Write Arabic or English letters in the air with your finger in front of a webcam. The page draws them with a calligraphy-style brush, recognizes each letter with a CNN trained on real handwriting, and builds them into words.**
 
 ### [▶ جرّبها مباشرة | Try it live](https://marwathebest.github.io/harf-fil-hawa/)
 
@@ -10,7 +10,7 @@
 
 ## طريقة الاستخدام | How to use
 
-1. اضغط **شغّل الكاميرا**، أو **جرّب بالماوس** لو ما عندك كاميرا.
+1. اضغط **شغّل الكاميرا**، أو **جرّب بالماوس** لو ما عندك كاميرا. وزر **«عربي ⇄ EN»** يبدّل بين العربي والإنجليزي.
 2. **قرّب السبابة من الإبهام** عشان يبدأ الرسم، و**بعّدهم** عشان يوقف.
 3. اكتب الحرف بشكله المنفصل. النقاط تكون بنقرة سريعة.
 4. وقّف ثانية، فيطلع الحرف وينضاف للكلمة. لو قرأه غلط، اختر الحرف الصح والموقع **يتعلّم خطك**.
@@ -27,10 +27,10 @@
 | الإيماءات | Gestures | الكف المفتوح يمسح (الأصابع الأربعة ممدودة والإبهام بعيد)، والوقوف فوق زر يضغطه (dwell click) |
 | تنعيم الحركة | Smoothing | [One Euro Filter](https://gery.casiez.net/1euro/) يشيل رجفة اليد، ويخلي الحركة السريعة سريعة |
 | الفرشاة | Brush | قلم مسطّح بزاوية ٣٥°، يعرض ويرفع حسب اتجاه الحركة زي قلم الخط العربي |
-| التعرّف | Recognition | بدون تدريب: كل حرف من الـ ٢٨ ينرسم بخمسة خطوط عربية، وبعدين الكتابة والحروف يتحوّلون لهيكل بعرض بكسل واحد (Zhang-Suen thinning). المقارنة بمسافة chamfer، مع عدد أجزاء الحرف ونقاطه ونسبة طوله لعرضه |
+| التعرّف | Recognition | شبكة **CNN** صغيرة (٥ طبقات conv) تشتغل داخل المتصفح بـ JavaScript بدون أي مكتبة. متدرّبة على [AHCD](https://github.com/mloey/Arabic-Handwritten-Characters-Dataset) (١٦٨٠٠ حرف عربي بخط ٦٠ شخص) و [EMNIST Letters](https://huggingface.co/datasets/tanganke/emnist_letters) (١٢٤٨٠٠ حرف إنجليزي). قبل التدريب وقبل القراءة يتوحّد شكل الحرف بنفس الخطوات: قص، توسيط، تنحيف لبكسل واحد، وسُمك ثابت. وأثناء التدريب تنضاف تشويهات عشوائية تشبه رجفة اليد في الهوا |
 | التعلّم | Learning | لما تصحّح حرف، تنحفظ كتابتك كقالب جديد في المتصفح (localStorage) |
 
-**الدقة | Accuracy:** على خطوط ما تعلّم منها المتعرّف، تطلع الدقة **٩٠٪** للحرف الأول، و**٨٤٪** لو أضفنا الخط الكوفي اللي شكله بعيد عن خط اليد. تقدر تعيد الاختبار من [`tools/accuracy.html`](tools/accuracy.html). أما خط اليد الحقيقي فيختلف من شخص لشخص، وعشان كذا أضفت ميزة التعلّم من التصحيح.
+**الدقة | Accuracy:** على حروف ناس ما شافهم النموذج أبداً: العربي **٨٤٪** (28 حرف)، والإنجليزي **٩٠٪** (26 حرف). ولما تصحّح حرف، كتابتك تنحفظ وتنخلط مع رأي الشبكة، فيتحسّن مع خطك. التدريب من جديد: `python tools/prep.py data arrays` وبعدها `python tools/train.py ar arrays models 30` (CPU، تقريباً ١٥ دقيقة).
 
 **الخصوصية | Privacy:** كل المعالجة تصير داخل المتصفح، وما ينرسل أي فيديو أو صورة لأي سيرفر.
 
@@ -48,12 +48,15 @@ python -m http.server 8000
 |---|---|
 | `index.html` · `css/style.css` | الواجهة (RTL) |
 | `js/app.js` | الكاميرا، تتبّع اليد، الرسم، والتعلّم من التصحيح |
-| `js/recognizer.js` | التعرّف على الحرف |
+| `js/cnn.js` | تجهيز الكتابة وتشغيل الشبكة العصبية |
+| `js/recognizer.js` | مقارنة الأشكال: لكتابات المستخدم المحفوظة، وطريقة احتياطية |
+| `models/` | أوزان الشبكة (int8)، العربي والإنجليزي |
+| `tools/prep.py` · `tools/train.py` | تجهيز البيانات وتدريب الشبكة بـ PyTorch |
 | `tools/accuracy.html` | اختبار الدقة على خطوط ما تعلّم منها المتعرّف |
 
 ## التقنيات | Tech
 
-JavaScript (ES modules) · Canvas 2D · MediaPipe Tasks Vision · Computer vision (thinning, distance transform, chamfer matching) · بدون أي framework أو build step
+JavaScript (ES modules) · Canvas 2D · MediaPipe Tasks Vision · PyTorch (training) · CNN inference in plain JS · Computer vision (thinning, distance transform, chamfer matching) · بدون أي framework أو build step
 
 ---
 

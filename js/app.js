@@ -1,7 +1,8 @@
 // app.js
 // يربط الكاميرا وتتبّع اليد والرسم والتعرّف على الحرف.
 
-import { Recognizer, TEMPLATE_FONTS, LETTERS } from './recognizer.js';
+import { Recognizer, TEMPLATE_FONTS, LETTERS, shapeFromStrokes } from './recognizer.js?v=5';
+import { loadModel, renderStrokes, toInput, predict } from './cnn.js?v=5';
 
 const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
@@ -24,7 +25,17 @@ const css = getComputedStyle(document.documentElement);
 const INK = css.getPropertyValue('--ink').trim();
 const GLOW = css.getPropertyValue('--ink-glow').trim();
 
-const recognizer = new Recognizer();
+// كل لغة لها نموذج CNN متدرّب على خط يد حقيقي، وقائمة حروفها
+const LANGS = {
+  ar: { letters: LETTERS, model: 'models/model_ar.json?v=5', dir: 'rtl' },
+  en: { letters: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c) => [c, c]), model: 'models/model_en.json?v=5', dir: 'ltr' },
+};
+const models = {};
+let lang = 'ar';
+try { if (localStorage.getItem('harf.lang') === 'en') lang = 'en'; } catch { /* التخزين مقفل */ }
+
+const recognizer = new Recognizer();     // احتياط: قوالب الخطوط العربية لو النموذج ما تحمّل
+const userRec = new Recognizer();        // كتابات المستخدم اللي صحّحها
 let ready = false;
 
 let W = 0, H = 0, DPR = 1;
@@ -158,9 +169,40 @@ function wipe() {
 
 // ---------- recognition ----------
 
+function letterName(char) {
+  const e = LANGS[lang].letters.find(([c]) => c === char);
+  return e ? e[1] : char;
+}
+
+// يجمع رأي الشبكة مع كتابات المستخدم المحفوظة، ويرجّع أفضل 3
+function classify(strs) {
+  const model = models[lang];
+  if (!model) return lang === 'ar' ? recognizer.recognize(strs) : null;
+  const input = toInput(renderStrokes(strs), model.size, model.fit);
+  if (!input) return null;
+  const probs = predict(model, input);
+  const scores = new Map(model.labels.map((c, i) => [c, probs[i]]));
+
+  // لو المستخدم علّمنا شكل حرف يشبه هذي الكتابة كثير، نعطيه وزن
+  const only = new Set(model.labels);
+  const d = userRec.distances(shapeFromStrokes(strs), only);
+  if (d.size) {
+    const dmin = Math.min(...d.values());
+    const u = dmin < 2 ? 0.6 : dmin < 3.5 ? 0.3 : 0;
+    if (u) {
+      let sum = 0;
+      const us = new Map();
+      for (const [c, dist] of d) { const v = Math.exp(-(dist - dmin) / 1.2); us.set(c, v); sum += v; }
+      for (const c of model.labels) scores.set(c, (1 - u) * scores.get(c) + u * ((us.get(c) || 0) / sum));
+    }
+  }
+  return [...scores].sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([char, confidence]) => ({ char, name: letterName(char), confidence }));
+}
+
 function recognize() {
   if (!ready || !strokes.length) return;
-  const top = recognizer.recognize(strokes);
+  const top = classify(strokes);
   if (!top) {
     toast('الحرف صغير مرة، اكتبه أكبر شوي');
     clearInk();
@@ -176,7 +218,10 @@ function recognize() {
 
 function showResult(top) {
   $('#glyph').textContent = top[0].char;
-  $('#glyph-name').textContent = `${top[0].name} · ${Math.round(top[0].confidence * 100)}%`;
+  $('#glyph').classList.toggle('latin', lang === 'en');
+  $('#glyph-name').textContent = lang === 'en'
+    ? `${Math.round(top[0].confidence * 100)}%`
+    : `${top[0].name} · ${Math.round(top[0].confidence * 100)}%`;
   const alts = $('#alts');
   alts.innerHTML = '';
   if (top.length > 1) {
@@ -211,7 +256,7 @@ function hideResult() {
 function togglePicker() {
   const picker = $('#picker');
   if (!picker.childElementCount) {
-    for (const [char, name] of LETTERS) {
+    for (const [char, name] of LANGS[lang].letters) {
       const b = document.createElement('button');
       b.textContent = char;
       b.title = name;
@@ -248,7 +293,7 @@ function loadSamples() {
 }
 
 function learn(char, strs) {
-  if (!strs.length || !recognizer.addSample(char, strs)) return;
+  if (!strs.length || !userRec.addSample(char, strs)) return;
   // نحفظ النقاط بأرقام صحيحة عشان يصغر حجمها
   const compact = strs.map((st) => st.map((p) => [Math.round(p.x), Math.round(p.y)]));
   const all = loadSamples();
@@ -261,7 +306,7 @@ function learn(char, strs) {
 
 function restoreSamples() {
   for (const s of loadSamples()) {
-    recognizer.addSample(s.char, s.strokes.map((st) => st.map(([x, y]) => ({ x, y }))));
+    userRec.addSample(s.char, s.strokes.map((st) => st.map(([x, y]) => ({ x, y }))));
   }
 }
 
@@ -295,8 +340,8 @@ ink.addEventListener('pointermove', (e) => {
     penMove(p.x, p.y);
   }
 });
-ink.addEventListener('pointerup', penUp);
-ink.addEventListener('pointercancel', penUp);
+ink.addEventListener('pointerup', () => penUp());
+ink.addEventListener('pointercancel', () => penUp());
 
 // ---------- camera & hand tracking ----------
 
@@ -572,10 +617,10 @@ function saveImage() {
   x.textAlign = 'center';
   x.textBaseline = 'middle';
   let size = 320;
-  x.font = `700 ${size}px "Aref Ruqaa"`;
+  x.font = `700 ${size}px "Aref Ruqaa", "Playfair Display", serif`;
   while (x.measureText(text).width > 1400 && size > 80) {
     size -= 10;
-    x.font = `700 ${size}px "Aref Ruqaa"`;
+    x.font = `700 ${size}px "Aref Ruqaa", "Playfair Display", serif`;
   }
   x.shadowColor = GLOW;
   x.shadowBlur = 40;
@@ -598,6 +643,7 @@ $('#btn-mouse').addEventListener('click', () => {
   toast('اضغط واسحب عشان تكتب');
 });
 $('#btn-help').addEventListener('click', () => $('#intro').classList.remove('hidden'));
+$('#btn-lang').addEventListener('click', () => setLang(lang === 'ar' ? 'en' : 'ar'));
 $('#btn-wipe').addEventListener('click', () => { if (!wipe()) toast('اللوحة فاضية'); });
 $('#btn-space').addEventListener('click', () => { word += ' '; renderWord(); });
 $('#btn-back').addEventListener('click', () => { word = word.slice(0, -1); renderWord(); hideResult(); });
@@ -613,13 +659,46 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('resize', resize);
 resize();
 
-// نجهّز قوالب الحروف بعد ما تتحمّل الخطوط
-Promise.all(TEMPLATE_FONTS.map((f) => document.fonts.load(`150px "${f}"`, 'ابت')))
-  .catch(() => {})
-  .then(() => {
-    recognizer.build();
-    restoreSamples();
-    ready = true;
-    if (strokes.length && !current) recognize();
-    window.__harf = { recognizer, handleHand, get strokes() { return strokes; }, get word() { return word; } };
-  });
+// ---------- language ----------
+
+async function ensureModel(l) {
+  if (models[l]) return models[l];
+  try {
+    models[l] = await loadModel(LANGS[l].model);
+  } catch (err) {
+    console.error(err);
+    toast(l === 'en' ? 'ما قدرت أحمّل نموذج الإنجليزي' : 'ما تحمّل النموذج، بستخدم الطريقة الاحتياطية');
+  }
+  return models[l];
+}
+
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem('harf.lang', l); } catch { /* التخزين مقفل */ }
+  const btn = $('#btn-lang');
+  btn.textContent = l === 'ar' ? 'عربي ⇄ EN' : 'English ⇄ ع';
+  btn.setAttribute('aria-label', l === 'ar' ? 'بدّل للإنجليزي' : 'Switch to Arabic');
+  $('#picker').innerHTML = '';
+  clearTimeout(timer);
+  freshLetter = false;
+  clearInk();
+  hideResult();
+  ensureModel(l);
+  toast(l === 'ar' ? 'اكتب حروف عربية' : 'Write English letters · اكتب حروف إنجليزية');
+}
+
+// نجهّز النموذج، وقوالب الخطوط الاحتياطية بعد ما تتحمّل الخطوط
+setLang(lang);
+Promise.all([
+  ensureModel(lang),
+  Promise.all(TEMPLATE_FONTS.map((f) => document.fonts.load(`150px "${f}"`, 'ابت'))).catch(() => {}),
+]).then(() => {
+  recognizer.build();
+  restoreSamples();
+  ready = true;
+  if (strokes.length && !current) recognize();
+  window.__harf = {
+    recognizer, userRec, models, handleHand, classify, setLang,
+    get strokes() { return strokes; }, get word() { return word; },
+  };
+});

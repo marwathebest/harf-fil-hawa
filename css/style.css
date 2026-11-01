@@ -13,7 +13,7 @@
   --warn: #f4a261;
   --radius: 14px;
   --ui: "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --callig: "Aref Ruqaa", "Noto Naskh Arabic", serif;
+  --callig: "Aref Ruqaa", "Noto Naskh Arabic", "Playfair Display", serif;
 }
 
 * { box-sizing: border-box; }
@@ -71,6 +71,10 @@ body.camera-on #cam { opacity: 0.32; }
 }
 .pill.live { color: var(--ok); border-color: rgba(123, 211, 137, 0.4); }
 .pill.drawing { color: var(--gold); border-color: var(--gold); }
+
+.pill-btn { cursor: pointer; font-family: var(--ui); color: var(--gold); border-color: rgba(233, 196, 106, 0.4); }
+.pill-btn:hover { border-color: var(--gold); }
+.glyph.latin { font-family: "Playfair Display", Georgia, serif; font-style: italic; }
 
 .icon-btn {
   width: 34px; height: 34px;

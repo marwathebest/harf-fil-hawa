@@ -1,0 +1,14 @@
+# Render Blueprint: موقع ثابت، ما يحتاج build
+services:
+  - type: web
+    name: harf-fil-hawa
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(self)
+      - path: /models/*
+        name: Cache-Control
+        value: public, max-age=604800
