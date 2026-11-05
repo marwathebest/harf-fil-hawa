@@ -1,9 +1,8 @@
-# Loads AHCD + EMNIST letters into numpy arrays (white ink on black, 0..1) and writes contact sheets to check labels.
+# Loads AHCD into numpy arrays (white ink on black, 0..1) and writes contact sheets to check labels.
 import io, re, sys, zipfile
 from pathlib import Path
 import numpy as np
 from PIL import Image
-import pyarrow.parquet as pq
 
 DATA = Path(sys.argv[1])
 OUT = Path(sys.argv[2])
@@ -23,12 +22,6 @@ def load_ahcd(name):
     return np.stack(xs), np.array(ys, dtype=np.int64)
 
 
-def load_emnist(name):
-    t = pq.read_table(DATA / 'emnist' / f'{name}.parquet').to_pydict()
-    xs = [np.array(Image.open(io.BytesIO(im['bytes'])).convert('L'), dtype=np.float32) / 255.0 for im in t['image']]
-    return np.stack(xs), np.array(t['label'], dtype=np.int64)
-
-
 def sheet(x, y, classes, path, per=8):
     h, w = x.shape[1:]
     canvas = np.zeros((classes * h, per * w), dtype=np.float32)
@@ -45,8 +38,3 @@ for name in ('train', 'test'):
     np.savez_compressed(OUT / f'ahcd_{name}.npz', x=x, y=y)
     if name == 'train':
         sheet(x, y, 28, OUT / 'ahcd_sheet.png')
-    x, y = load_emnist(name)
-    print('emnist', name, x.shape, y.min(), y.max(), 'mean', x.mean().round(3))
-    np.savez_compressed(OUT / f'emnist_{name}.npz', x=x, y=y)
-    if name == 'train':
-        sheet(x, y, 26, OUT / 'emnist_sheet.png')

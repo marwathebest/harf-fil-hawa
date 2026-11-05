@@ -13,7 +13,7 @@
   --warn: #f4a261;
   --radius: 14px;
   --ui: "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --callig: "Aref Ruqaa", "Noto Naskh Arabic", "Playfair Display", serif;
+  --callig: "Aref Ruqaa", "Noto Naskh Arabic", serif;
 }
 
 * { box-sizing: border-box; }
@@ -69,12 +69,6 @@ body.camera-on #cam { opacity: 0.32; }
   color: var(--text-2);
   backdrop-filter: blur(8px);
 }
-.pill.live { color: var(--ok); border-color: rgba(123, 211, 137, 0.4); }
-.pill.drawing { color: var(--gold); border-color: var(--gold); }
-
-.pill-btn { cursor: pointer; font-family: var(--ui); color: var(--gold); border-color: rgba(233, 196, 106, 0.4); }
-.pill-btn:hover { border-color: var(--gold); }
-.glyph.latin { font-family: "Playfair Display", Georgia, serif; font-style: italic; }
 
 .icon-btn {
   width: 34px; height: 34px;
@@ -112,7 +106,6 @@ body.camera-on #cam { opacity: 0.32; }
   text-shadow: 0 0 24px var(--ink-glow);
 }
 .result.show .glyph { animation: pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1); }
-.glyph-name { color: var(--text-2); font-size: 14px; margin-top: 2px; }
 .alts { display: flex; justify-content: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .alts button {
   font: 500 15px var(--ui);
@@ -123,7 +116,6 @@ body.camera-on #cam { opacity: 0.32; }
   color: var(--text);
   cursor: pointer;
 }
-.alts button span { font-size: 11px; color: var(--text-2); margin-inline-start: 4px; }
 .alts-label { width: 100%; font-size: 12px; color: var(--text-2); }
 .picker { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
 .picker[hidden] { display: none; }
@@ -217,10 +209,10 @@ body.camera-on #cam { opacity: 0.32; }
 .card h1 { font-family: var(--callig); font-size: 54px; margin: 0 0 6px; color: var(--gold); line-height: 1.3; }
 .card h1 span { color: var(--text); font-weight: 400; }
 .lead { color: var(--text); font-size: 17px; line-height: 1.7; margin: 0 0 14px; }
-.steps { margin: 0 0 20px; padding-inline-start: 20px; color: var(--text-2); line-height: 1.9; }
-.steps b { color: var(--text); font-weight: 600; }
-.card-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.note { font-size: 12.5px; color: var(--text-2); margin: 16px 0 0; }
+.how { display: grid; gap: 10px; margin: 0 0 22px; font-size: 18px; }
+.how span { font-size: 24px; margin-inline-end: 6px; }
+.card-actions .btn-lg { width: 100%; font-size: 20px; padding: 14px; }
+.link-btn { display: block; margin: 14px auto 0; background: none; border: 0; color: var(--text-2); font: 500 14px var(--ui); cursor: pointer; text-decoration: underline; }
 
 .toast {
   position: fixed;

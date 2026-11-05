@@ -1,4 +1,4 @@
-# Trains a small CNN for Arabic (AHCD) or English (EMNIST letters) and exports int8 weights as JSON for the browser.
+# Trains a small CNN on Arabic handwriting (AHCD) and exports int8 weights as JSON for the browser.
 # The same normalization (crop -> fit 22px in 32 -> threshold -> thin -> dilate) is reimplemented in js/cnn.js.
 import base64, json, os, sys, time
 from pathlib import Path
@@ -12,10 +12,9 @@ torch.set_num_threads(int(os.environ.get("THREADS", os.cpu_count() or 4)))
 torch.manual_seed(0)
 np.random.seed(0)
 
-LANG = sys.argv[1]                  # ar | en
-ARR = Path(sys.argv[2])
-OUT = Path(sys.argv[3])
-EPOCHS = int(sys.argv[4]) if len(sys.argv) > 4 else 20
+ARR = Path(sys.argv[1])
+OUT = Path(sys.argv[2])
+EPOCHS = int(sys.argv[3]) if len(sys.argv) > 3 else 30
 S, FIT = 32, 22
 
 
@@ -71,13 +70,8 @@ def normalize(x):
 
 
 def load(split):
-    if LANG == 'ar':
-        d = np.load(ARR / f'ahcd_{split}.npz')
-        x = d['x']
-    else:
-        d = np.load(ARR / f'emnist_{split}.npz')
-        x = d['x'].transpose(0, 2, 1)  # EMNIST is stored transposed
-    return normalize(x), d['y']
+    d = np.load(ARR / f'ahcd_{split}.npz')
+    return normalize(d['x']), d['y']
 
 
 class Net(nn.Module):
@@ -148,8 +142,8 @@ if __name__ == '__main__':
     t0 = time.time()
     xtr, ytr = load('train')
     xte, yte = load('test')
-    print(f'{LANG}: train {xtr.shape} test {xte.shape} prep {time.time() - t0:.0f}s', flush=True)
-    np.savez_compressed(OUT / f'norm_{LANG}_test.npz', x=xte[:400], y=yte[:400])
+    print(f'train {xtr.shape} test {xte.shape} prep {time.time() - t0:.0f}s', flush=True)
+    np.savez_compressed(OUT / 'norm_test.npz', x=xte[:400], y=yte[:400])
     xtr, ytr = torch.from_numpy(xtr)[:, None], torch.from_numpy(ytr)
     xte, yte = torch.from_numpy(xte)[:, None], torch.from_numpy(yte)
     n = int(ytr.max()) + 1
@@ -173,6 +167,6 @@ if __name__ == '__main__':
         print(f'epoch {ep + 1}/{EPOCHS} loss {loss.item():.3f} test {clean:.4f} test+aug {noisy:.4f} {time.time() - t0:.0f}s', flush=True)
         if clean > best:
             best = clean
-            labels = ([*'ابتثجحخدذرزسشصضطظعغفقكلمنهوي'] if LANG == 'ar' else [chr(65 + i) for i in range(26)])
-            export(model, OUT / f'model_{LANG}.json', labels, {'test_accuracy': round(clean, 4), 'test_aug_accuracy': round(noisy, 4), 'epoch': ep + 1})
+            labels = [*'ابتثجحخدذرزسشصضطظعغفقكلمنهوي']
+            export(model, OUT / 'model_ar.json', labels, {'test_accuracy': round(clean, 4), 'test_aug_accuracy': round(noisy, 4), 'epoch': ep + 1})
     print('best', best)

@@ -7,8 +7,8 @@
 <meta name="description" content="اكتب حروف عربية في الهوا بإصبعك قدام الكاميرا، والموقع يرسمها بخط جميل ويتعرّف عليها.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@500&family=Amiri&family=Lateef&family=Cairo:wght@500&family=Playfair+Display:ital,wght@1,600&display=swap">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@500&family=Amiri&family=Lateef&family=Cairo:wght@500&display=swap">
+<link rel="stylesheet" href="css/style.css?v=8">
 </head>
 <body>
 <video id="cam" playsinline muted aria-hidden="true"></video>
@@ -18,57 +18,48 @@
 <header class="top">
   <div class="brand">حرف <span>في الهوا</span></div>
   <div class="top-right">
-    <button id="btn-lang" class="pill pill-btn">عربي ⇄ EN</button>
-    <span id="status" class="pill">الكاميرا مطفية</span>
     <button id="btn-help" class="icon-btn" aria-label="طريقة الاستخدام">؟</button>
   </div>
 </header>
 
 <div id="result" class="result" aria-live="polite">
   <div class="glyph" id="glyph"></div>
-  <div class="glyph-name" id="glyph-name"></div>
   <div class="alts" id="alts"></div>
   <div class="picker" id="picker" hidden></div>
 </div>
 
 <section class="dock">
-  <div class="word" id="word" dir="auto" aria-live="polite"><span class="placeholder">الحروف اللي تكتبها تتجمّع هنا</span></div>
+  <div class="word" id="word" aria-live="polite"><span class="placeholder">الحروف اللي تكتبها تتجمّع هنا</span></div>
   <div class="actions">
-    <button id="btn-wipe" class="btn">↺ امسح الرسم</button>
     <button id="btn-space" class="btn">مسافة</button>
-    <button id="btn-back" class="btn">⌫ حذف حرف</button>
-    <button id="btn-clear" class="btn">مسح الكل</button>
-    <button id="btn-save" class="btn btn-gold">حفظ صورة</button>
+    <button id="btn-back" class="btn">⌫ حذف</button>
+    <button id="btn-save" class="btn">حفظ</button>
   </div>
 </section>
 
 <div id="intro" class="overlay">
   <div class="card">
     <h1>حرف <span>في الهوا</span></h1>
-    <p class="lead">اكتب حرف عربي في الهوا بإصبعك قدام الكاميرا، ويرسمه الموقع بخط جميل ويتعرّف عليه.</p>
-    <ol class="steps">
-      <li><b>قرّب السبابة من الإبهام</b> يبدأ الرسم، <b>وبعّدهم</b> يوقف.</li>
-      <li>اكتب الحرف بشكله المنفصل، ونقاطه نقرة سريعة.</li>
-      <li>وقّف ثانية، فيطلع لك الحرف ويضاف للكلمة.</li>
-      <li><b>غلطت؟</b> افتح كفّك قدام الكاميرا ثانية وينمسح.</li>
-      <li>تبي <b>إنجليزي</b>؟ اضغط زر «عربي ⇄ EN» فوق.</li>
-    </ol>
-    <div class="card-actions">
-      <button id="btn-camera" class="btn btn-gold btn-lg">شغّل الكاميرا</button>
-      <button id="btn-mouse" class="btn btn-lg">جرّب بالماوس</button>
+    <p class="lead">اكتب حروف عربية في الهوا بإصبعك.</p>
+    <div class="how">
+      <div><span>🤏</span> قرّب السبابة من الإبهام واكتب</div>
+      <div><span>✋</span> افتح كفّك يوقف، وهزّها يمسح</div>
     </div>
-    <p class="note">الكاميرا تشتغل داخل جهازك فقط، وما ينرسل أي فيديو لأي مكان.</p>
+    <div class="card-actions">
+      <button id="btn-camera" class="btn btn-gold btn-lg">ابدأ</button>
+    </div>
+    <button id="btn-mouse" class="link-btn">أو اكتب بالماوس</button>
   </div>
 </div>
 
 <div class="hand-hint" aria-hidden="true">
-  <span>🤏 قرّب أصابعك وارسم</span>
-  <span>✋ افتح كفّك ثانية = مسح</span>
-  <span>⏳ وقّف الدائرة فوق زر = ضغطة</span>
+  <span>🤏 اكتب</span>
+  <span>✋ وقف</span>
+  <span>👋 امسح</span>
 </div>
 
 <div id="toast" class="toast" role="status"></div>
 
-<script type="module" src="js/app.js?v=5"></script>
+<script type="module" src="js/app.js?v=8"></script>
 </body>
 </html>

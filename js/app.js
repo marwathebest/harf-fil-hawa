@@ -1,8 +1,8 @@
 // app.js
 // يربط الكاميرا وتتبّع اليد والرسم والتعرّف على الحرف.
 
-import { Recognizer, TEMPLATE_FONTS, LETTERS, shapeFromStrokes } from './recognizer.js?v=5';
-import { loadModel, renderStrokes, toInput, predict } from './cnn.js?v=5';
+import { Recognizer, TEMPLATE_FONTS, LETTERS, shapeFromStrokes } from './recognizer.js?v=8';
+import { loadModel, renderStrokes, toInput, predict } from './cnn.js?v=8';
 
 const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
@@ -11,7 +11,8 @@ const PINCH_ON = 0.32;   // المسافة بين السبابة والإبها�
 const PINCH_OFF = 0.46;
 const RECOGNIZE_AFTER = 900; // كم ملي ثانية ننتظر بعد آخر ضربة
 const RECOGNIZE_AFTER_HAND = 1600;
-const PALM_HOLD = 700;  // كم ملي ثانية تفتح كفّك عشان تمسح
+const SHAKES_TO_WIPE = 4;  // كم هزّة للكف عشان تمسح
+const SHAKE_WINDOW = 2500; // والهزّات لازم تكون خلال هالمدة (ملي ثانية)
 const DWELL = 1000;     // كم ملي ثانية توقّف الدائرة فوق زر عشان ينضغط
 const NIB = (35 * Math.PI) / 180; // زاوية القلم المسطّح
 
@@ -25,14 +26,8 @@ const css = getComputedStyle(document.documentElement);
 const INK = css.getPropertyValue('--ink').trim();
 const GLOW = css.getPropertyValue('--ink-glow').trim();
 
-// كل لغة لها نموذج CNN متدرّب على خط يد حقيقي، وقائمة حروفها
-const LANGS = {
-  ar: { letters: LETTERS, model: 'models/model_ar.json?v=5', dir: 'rtl' },
-  en: { letters: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c) => [c, c]), model: 'models/model_en.json?v=5', dir: 'ltr' },
-};
-const models = {};
-let lang = 'ar';
-try { if (localStorage.getItem('harf.lang') === 'en') lang = 'en'; } catch { /* التخزين مقفل */ }
+const MODEL_URL = 'models/model_ar.json?v=8'; // CNN متدرّب على خط يد حقيقي
+let model = null;
 
 const recognizer = new Recognizer();     // احتياط: قوالب الخطوط العربية لو النموذج ما تحمّل
 const userRec = new Recognizer();        // كتابات المستخدم اللي صحّحها
@@ -117,7 +112,6 @@ function penDown(x, y) {
   strokes.push(current);
   styleInk();
   drawSegment(current, 0);
-  setStatus('drawing');
 }
 
 function penMove(x, y) {
@@ -145,7 +139,6 @@ function penUp(trim = 0) {
     }
   }
   current = null;
-  setStatus(cameraOn ? 'live' : 'idle');
   clearTimeout(timer);
   // باليد تاخذ وقت أطول عشان تروح للنقاط، فننتظر أكثر
   timer = setTimeout(recognize, cameraOn ? RECOGNIZE_AFTER_HAND : RECOGNIZE_AFTER);
@@ -170,14 +163,13 @@ function wipe() {
 // ---------- recognition ----------
 
 function letterName(char) {
-  const e = LANGS[lang].letters.find(([c]) => c === char);
+  const e = LETTERS.find(([c]) => c === char);
   return e ? e[1] : char;
 }
 
 // يجمع رأي الشبكة مع كتابات المستخدم المحفوظة، ويرجّع أفضل 3
 function classify(strs) {
-  const model = models[lang];
-  if (!model) return lang === 'ar' ? recognizer.recognize(strs) : null;
+  if (!model) return recognizer.recognize(strs);
   const input = toInput(renderStrokes(strs), model.size, model.fit);
   if (!input) return null;
   const probs = predict(model, input);
@@ -218,21 +210,17 @@ function recognize() {
 
 function showResult(top) {
   $('#glyph').textContent = top[0].char;
-  $('#glyph').classList.toggle('latin', lang === 'en');
-  $('#glyph-name').textContent = lang === 'en'
-    ? `${Math.round(top[0].confidence * 100)}%`
-    : `${top[0].name} · ${Math.round(top[0].confidence * 100)}%`;
   const alts = $('#alts');
   alts.innerHTML = '';
   if (top.length > 1) {
     const label = document.createElement('div');
     label.className = 'alts-label';
-    label.textContent = 'قصدك حرف ثاني؟';
+    label.textContent = 'مو هذا؟';
     alts.append(label);
   }
   for (const r of top.slice(1)) {
     const b = document.createElement('button');
-    b.innerHTML = `${r.char}<span>${Math.round(r.confidence * 100)}%</span>`;
+    b.textContent = r.char;
     b.addEventListener('click', () => replaceLast(r));
     alts.append(b);
   }
@@ -256,7 +244,7 @@ function hideResult() {
 function togglePicker() {
   const picker = $('#picker');
   if (!picker.childElementCount) {
-    for (const [char, name] of LANGS[lang].letters) {
+    for (const [char, name] of LETTERS) {
       const b = document.createElement('button');
       b.textContent = char;
       b.title = name;
@@ -306,6 +294,7 @@ function learn(char, strs) {
 
 function restoreSamples() {
   for (const s of loadSamples()) {
+    if (!LETTERS.some(([c]) => c === s.char)) continue; // عيّنات قديمة من الوضع الإنجليزي
     userRec.addSample(s.char, s.strokes.map((st) => st.map(([x, y]) => ({ x, y }))));
   }
 }
@@ -376,8 +365,9 @@ let pinching = false;
 let pinchFrames = 0;
 let lostAt = 0;
 let lastVideoTime = -1;
-let palmSince = 0;
 let palmFired = false;
+let palmSeen = 0;
+const shake = { times: [], dir: 0, ext: null };
 let dwellEl = null;
 let dwellStart = 0;
 let dwellDone = false;
@@ -411,13 +401,12 @@ async function startCamera() {
     await video.play();
     cameraOn = true;
     document.body.classList.add('camera-on');
-    setStatus('live');
     closeIntro();
     requestAnimationFrame(trackLoop);
   } catch (err) {
     console.error(err);
     btn.disabled = false;
-    btn.textContent = 'شغّل الكاميرا';
+    btn.textContent = 'ابدأ';
     const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
     toast(denied ? 'ما انسمح للكاميرا. تقدر تجرّب بالماوس.' : 'ما قدرت أشغّل الكاميرا. تقدر تجرّب بالماوس.');
   }
@@ -462,19 +451,25 @@ function handleHand(lm, now) {
   const raw = toScreen({ x: (lm[4].x + lm[8].x) / 2, y: (lm[4].y + lm[8].y) / 2 });
   const p = { x: fx.filter(raw.x, now), y: fy.filter(raw.y, now) };
 
-  // ✋ كف مفتوح لفترة = مسح
-  const palm = !pinching && isOpenPalm(lm, ratio);
+  // ✋ الكف المفتوح يوقف الكتابة فوراً، وهزّه 4 مرات أو أكثر يمسح
+  const palm = isOpenPalm(lm, ratio);
+  if (palm && pinching) {
+    pinching = false;
+    pinchFrames = 0;
+    penUp(90);
+  }
   let palmProgress = 0;
   if (palm) {
-    if (!palmSince) palmSince = now;
-    palmProgress = Math.min(1, (now - palmSince) / PALM_HOLD);
-    if (palmProgress >= 1 && !palmFired) {
+    palmSeen = now;
+    const count = countShakes(lm[9].x, size, now);
+    palmProgress = palmFired ? 0 : Math.min(1, count / SHAKES_TO_WIPE);
+    if (count >= SHAKES_TO_WIPE && !palmFired) {
       palmFired = true;
       wipe();
     }
-  } else {
-    palmSince = 0;
-    palmFired = false;
+  } else if (now - palmSeen > 300) {
+    // الكف ممكن تضيع فريم أو فريمين وهي تهتز، فما نصفّر العد على طول
+    resetShake();
   }
 
   // ⏳ الدائرة واقفة فوق زر = ضغطة
@@ -512,14 +507,41 @@ function handleHand(lm, now) {
   drawHud(lm, p, ratio, { palmProgress, dwellProgress });
 }
 
-// الأصابع الأربعة ممدودة (أطرافها أبعد عن الرسغ من مفاصلها) والإبهام بعيد عن السبابة
+// يعد كم مرة غيّرت الكف اتجاهها يمين ويسار خلال SHAKE_WINDOW
+function countShakes(x, size, now) {
+  const need = size * 0.3; // الحركة الصغيرة ما تنحسب هزّة
+  if (shake.ext === null) shake.ext = x;
+  if (shake.dir === 0) {
+    if (Math.abs(x - shake.ext) > need) {
+      shake.dir = Math.sign(x - shake.ext);
+      shake.ext = x;
+    }
+  } else if ((x - shake.ext) * shake.dir > 0) {
+    shake.ext = x;
+  } else if ((shake.ext - x) * shake.dir > need) {
+    shake.dir = -shake.dir;
+    shake.ext = x;
+    shake.times.push(now);
+  }
+  shake.times = shake.times.filter((t) => now - t < SHAKE_WINDOW);
+  return shake.times.length;
+}
+
+function resetShake() {
+  shake.times = [];
+  shake.dir = 0;
+  shake.ext = null;
+  palmFired = false;
+}
+
+// الأصابع الأربعة ممدودة (أطرافها أبعد عن الرسغ من مفاصلها) والإبهام مو ماسك السبابة
 function isOpenPalm(lm, ratio) {
   const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const w = lm[0];
   for (const [tip, pip] of [[8, 6], [12, 10], [16, 14], [20, 18]]) {
     if (d(lm[tip], w) < d(lm[pip], w) * 1.12) return false;
   }
-  return ratio > 0.75;
+  return ratio > PINCH_OFF;
 }
 
 function buttonAt(p) {
@@ -565,25 +587,11 @@ function drawHud(lm, p, ratio, { palmProgress = 0, dwellProgress = 0 } = {}) {
     hctx.font = '600 15px "IBM Plex Sans Arabic"';
     hctx.fillStyle = 'rgba(244, 162, 97, 0.95)';
     hctx.textAlign = 'center';
-    hctx.fillText('مسح', c.x, c.y + 5);
+    hctx.fillText('هزّ', c.x, c.y + 5);
   }
 }
 
 // ---------- ui ----------
-
-function setStatus(mode) {
-  const el = $('#status');
-  el.className = 'pill';
-  if (mode === 'drawing') {
-    el.classList.add('drawing');
-    el.textContent = 'يرسم…';
-  } else if (mode === 'live') {
-    el.classList.add('live');
-    el.textContent = 'الكاميرا شغّالة';
-  } else {
-    el.textContent = cameraOn ? 'الكاميرا شغّالة' : 'وضع الماوس';
-  }
-}
 
 let toastTimer = 0;
 function toast(msg) {
@@ -617,10 +625,10 @@ function saveImage() {
   x.textAlign = 'center';
   x.textBaseline = 'middle';
   let size = 320;
-  x.font = `700 ${size}px "Aref Ruqaa", "Playfair Display", serif`;
+  x.font = `700 ${size}px "Aref Ruqaa", serif`;
   while (x.measureText(text).width > 1400 && size > 80) {
     size -= 10;
-    x.font = `700 ${size}px "Aref Ruqaa", "Playfair Display", serif`;
+    x.font = `700 ${size}px "Aref Ruqaa", serif`;
   }
   x.shadowColor = GLOW;
   x.shadowBlur = 40;
@@ -639,58 +647,34 @@ function saveImage() {
 $('#btn-camera').addEventListener('click', startCamera);
 $('#btn-mouse').addEventListener('click', () => {
   closeIntro();
-  setStatus('idle');
   toast('اضغط واسحب عشان تكتب');
 });
 $('#btn-help').addEventListener('click', () => $('#intro').classList.remove('hidden'));
-$('#btn-lang').addEventListener('click', () => setLang(lang === 'ar' ? 'en' : 'ar'));
-$('#btn-wipe').addEventListener('click', () => { if (!wipe()) toast('اللوحة فاضية'); });
 $('#btn-space').addEventListener('click', () => { word += ' '; renderWord(); });
-$('#btn-back').addEventListener('click', () => { word = word.slice(0, -1); renderWord(); hideResult(); });
-$('#btn-clear').addEventListener('click', () => { word = ''; renderWord(); clearInk(); hideResult(); });
+// زر واحد للحذف: يمسح اللي على اللوحة، ولو كانت فاضية يحذف آخر حرف
+$('#btn-back').addEventListener('click', () => {
+  if (wipe()) return;
+  word = word.slice(0, -1);
+  renderWord();
+  hideResult();
+});
 $('#btn-save').addEventListener('click', saveImage);
 
 window.addEventListener('keydown', (e) => {
   if (e.target.closest('button')) return;
   if (e.key === 'Backspace') $('#btn-back').click();
   else if (e.key === ' ') { e.preventDefault(); $('#btn-space').click(); }
-  else if (e.key === 'Escape') $('#btn-clear').click();
+  else if (e.key === 'Escape') { word = ''; renderWord(); clearInk(); hideResult(); }
 });
 window.addEventListener('resize', resize);
 resize();
 
-// ---------- language ----------
-
-async function ensureModel(l) {
-  if (models[l]) return models[l];
-  try {
-    models[l] = await loadModel(LANGS[l].model);
-  } catch (err) {
-    console.error(err);
-    toast(l === 'en' ? 'ما قدرت أحمّل نموذج الإنجليزي' : 'ما تحمّل النموذج، بستخدم الطريقة الاحتياطية');
-  }
-  return models[l];
-}
-
-function setLang(l) {
-  lang = l;
-  try { localStorage.setItem('harf.lang', l); } catch { /* التخزين مقفل */ }
-  const btn = $('#btn-lang');
-  btn.textContent = l === 'ar' ? 'عربي ⇄ EN' : 'English ⇄ ع';
-  btn.setAttribute('aria-label', l === 'ar' ? 'بدّل للإنجليزي' : 'Switch to Arabic');
-  $('#picker').innerHTML = '';
-  clearTimeout(timer);
-  freshLetter = false;
-  clearInk();
-  hideResult();
-  ensureModel(l);
-  toast(l === 'ar' ? 'اكتب حروف عربية' : 'Write English letters · اكتب حروف إنجليزية');
-}
-
 // نجهّز النموذج، وقوالب الخطوط الاحتياطية بعد ما تتحمّل الخطوط
-setLang(lang);
 Promise.all([
-  ensureModel(lang),
+  loadModel(MODEL_URL).then((m) => { model = m; }).catch((err) => {
+    console.error(err);
+    toast('ما تحمّل النموذج، بستخدم الطريقة الاحتياطية');
+  }),
   Promise.all(TEMPLATE_FONTS.map((f) => document.fonts.load(`150px "${f}"`, 'ابت'))).catch(() => {}),
 ]).then(() => {
   recognizer.build();
@@ -698,7 +682,7 @@ Promise.all([
   ready = true;
   if (strokes.length && !current) recognize();
   window.__harf = {
-    recognizer, userRec, models, handleHand, classify, setLang,
+    recognizer, userRec, get model() { return model; }, handleHand, classify,
     get strokes() { return strokes; }, get word() { return word; },
   };
 });
